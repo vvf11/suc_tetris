@@ -7,7 +7,6 @@
     html, body {
       height: 100%;
       margin: 0;
-      overflow: hidden; /* Предотвращаем прокрутку */
     }
 
     body {
@@ -20,18 +19,16 @@
 
     canvas {
       border: 1px solid white;
-      max-width: 100%;
-      max-height: 100vh; /* Ограничение высоты до высоты окна */
     }
   </style>
 </head>
 <body>
-<canvas id="game"></canvas>
+<canvas width="320" height="640" id="game"></canvas>
 <audio id="dropSound" src="https://www.myinstants.com/media/sounds/tetris-theme-song-2.mp3"></audio> <!-- Звуковой эффект падения -->
 <audio id="lineClearSound" src="https://www.myinstants.com/media/sounds/tetris-line-clear.mp3"></audio> <!-- Звуковой эффект очистки линии -->
 <audio id="gameOverSound" src="https://www.myinstants.com/media/sounds/game-over-arcade-1.mp3"></audio> <!-- Звуковой эффект окончания игры -->
 <script>
-const GRID_SIZE = 32; // Базовый размер клетки
+const grid = 32;
 let score = 0;
 let timeLeft = 90;
 let isPlaying = false;
@@ -54,56 +51,22 @@ const tetrominos = {
 };
 let tetromino = null;
 let count = 0;
-let canvas = document.getElementById('game');
-let context = canvas.getContext('2d');
+const canvas = document.getElementById('game');
+const context = canvas.getContext('2d');
 const dropSound = document.getElementById('dropSound');
 const lineClearSound = document.getElementById('lineClearSound');
 const gameOverSound = document.getElementById('gameOverSound');
-
-// Функция для динамического изменения размера канваса
-function resizeCanvas() {
-  const aspectRatio = 10 / 20; // Соотношение сторон (10 клеток шириной, 20 высотой)
-  const windowWidth = window.innerWidth * 0.9; // 90% ширины окна для отступов
-  const windowHeight = window.innerHeight * 0.9; // 90% высоты окна для отступов
-
-  let newWidth, newHeight;
-  if (windowWidth / windowHeight < aspectRatio) {
-    newWidth = windowWidth;
-    newHeight = newWidth / aspectRatio;
-  } else {
-    newHeight = windowHeight;
-    newWidth = newHeight * aspectRatio;
-  }
-
-  // Устанавливаем размеры канваса
-  canvas.width = newWidth;
-  canvas.height = newHeight;
-
-  // Масштабируем логическую сетку игры
-  const cellSize = Math.min(newWidth / 10, newHeight / 20); // Размер клетки, чтобы вместить 10x20 сетку
-  GRID_SIZE = cellSize; // Обновляем глобальную переменную GRID_SIZE
-
-  // Пересчитываем координаты для корректного отображения
-  context = canvas.getContext('2d');
-  updateScoreboard(); // Обновляем текст после изменения размера
-}
-
-// Обработчик изменения размера окна
-window.addEventListener('resize', resizeCanvas);
-
-// Инициализация при загрузке
-resizeCanvas();
 
 // Инициализация начального экрана
 function showStartScreen() {
   context.fillStyle = 'black';
   context.fillRect(0, 0, canvas.width, canvas.height); // Очистка всего канваса
   context.fillStyle = 'deeppink'; // Яркий розовый шрифт
-  context.font = '50px Arial'; // Увеличенный размер шрифта для "START"
+  context.font = '50px Arial'; // Размер шрифта для "START" (как в конце игры)
   context.textAlign = 'center';
-  context.fillText('START', canvas.width / 2, canvas.height / 2 - 20); // Центр по высоте
-  context.font = '30px Arial'; // Увеличенный размер шрифта для "PRESS SPACE"
-  context.fillText('PRESS SPACE', canvas.width / 2, canvas.height / 2 + 20); // Под "START"
+  context.fillText('START', canvas.width / 2, 300);
+  context.font = '30px Arial'; // Размер шрифта для "PRESS SPACE" (как в конце игры)
+  context.fillText('PRESS SPACE', canvas.width / 2, 340);
   context.textAlign = 'left'; // Сброс выравнивания
   if (!gameOver) return;
   requestAnimationFrame(showStartScreen);
@@ -192,13 +155,13 @@ function getNextTetromino() {
 function updateScoreboard() {
   // Очистка только верхней части для "Score" и "Time"
   context.fillStyle = 'black';
-  context.fillRect(0, 0, canvas.width, GRID_SIZE * 1.25); // Очистка верхней части (1.25 клетки для большего пространства)
+  context.fillRect(0, 0, canvas.width, 40); // Очистка верхней части (40px для большего пространства)
   context.fillStyle = 'deeppink'; // Яркий розовый шрифт, как у "GAME OVER"
   context.font = '24px Arial';
   context.textAlign = 'left';
-  context.fillText(`Score: ${score}`, GRID_SIZE * 0.3125, GRID_SIZE * 0.9375); // Левый верхний угол (10px, 30px в логических единицах)
+  context.fillText(`Score: ${score}`, 10, 30); // Левый верхний угол
   context.textAlign = 'right';
-  context.fillText(`Time: ${timeLeft}`, canvas.width - GRID_SIZE * 0.3125, GRID_SIZE * 0.9375); // Правый верхний угол (310px, 30px в логических единицах)
+  context.fillText(`Time: ${timeLeft}`, 310, 30); // Правый верхний угол
   context.textAlign = 'left'; // Сброс выравнивания
 }
 
@@ -215,9 +178,9 @@ function showGameOver() {
   context.fillStyle = 'deeppink'; // Яркий розовый шрифт
   context.font = '50px Arial'; // Размер шрифта для "GAME OVER" (как для "START")
   context.textAlign = 'center';
-  context.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20); // Центр по высоте
+  context.fillText('GAME OVER', canvas.width / 2, 320);
   context.font = '30px Arial'; // Размер шрифта для "PRESS SPACE" (как для "PRESS SPACE" в начале)
-  context.fillText('PRESS SPACE', canvas.width / 2, canvas.height / 2 + 20); // Под "GAME OVER"
+  context.fillText('PRESS SPACE', canvas.width / 2, 360);
   context.textAlign = 'left'; // Сброс выравнивания
 }
 
@@ -234,10 +197,10 @@ function showTimeUp() {
   context.fillStyle = 'deeppink'; // Яркий розовый шрифт
   context.font = '50px Arial'; // Размер шрифта для "Score: [число]" и "PLAY AGAIN" (как для "START")
   context.textAlign = 'center';
-  context.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2 - 60); // Выше центра
-  context.fillText('PLAY AGAIN', canvas.width / 2, canvas.height / 2 + 0); // Центр
+  context.fillText(`Score: ${score}`, canvas.width / 2, 280);
+  context.fillText('PLAY AGAIN', canvas.width / 2, 340);
   context.font = '30px Arial'; // Размер шрифта для "PRESS SPACE" (как для "PRESS SPACE" в начале)
-  context.fillText('PRESS SPACE', canvas.width / 2, canvas.height / 2 + 60); // Ниже центра
+  context.fillText('PRESS SPACE', canvas.width / 2, 380);
   context.textAlign = 'left'; // Сброс выравнивания
 }
 
@@ -282,7 +245,7 @@ function loop() {
     for (let col = 0; col < 10; col++) {
       if (playfield[row][col]) {
         context.fillStyle = colors[playfield[row][col]];
-        context.fillRect(col * GRID_SIZE, row * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1);
+        context.fillRect(col * grid, row * grid, grid - 1, grid - 1);
       }
     }
   }
@@ -290,7 +253,7 @@ function loop() {
   // Здесь можно изменить скорость падения фигур
   // Чем больше число (35), тем медленнее падают фигуры
   // Чем меньше число, тем быстрее падают фигуры
-  if (++count > 35) {
+  if (++count > 8) {
     // Проверка, не заполнено ли поле до критической высоты (например, строка 2)
     for (let col = 0; col < 10; col++) {
       if (playfield[2][col] !== 0) { // Если в строке 2 есть блоки, игра заканчивается
@@ -323,7 +286,7 @@ function drawTetromino() {
   for (let row = 0; row < tetromino.matrix.length; row++) {
     for (let col = 0; col < tetromino.matrix[row].length; col++) {
       if (tetromino.matrix[row][col] && tetromino.row + row >= 0) {
-        context.fillRect((tetromino.col + col) * GRID_SIZE, (tetromino.row + row) * GRID_SIZE, GRID_SIZE - 1, GRID_SIZE - 1);
+        context.fillRect((tetromino.col + col) * grid, (tetromino.row + row) * grid, grid - 1, grid - 1);
       }
     }
   }
