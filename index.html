@@ -1,325 +1,88 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Basic Tetris HTML Game</title>
+  <title>Verifiable Tetris with ZKP</title>
   <meta charset="UTF-8">
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-    }
-
-    body {
-      background: black;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-    }
-
-    canvas {
-      border: 1px solid white;
-    }
+    html, body { height: 100%; margin: 0; }
+    body { background: black; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+    canvas { border: 1px solid white; }
+    #proof { color: white; font-family: Arial; margin-top: 10px; }
   </style>
 </head>
 <body>
 <canvas width="320" height="640" id="game"></canvas>
-<audio id="dropSound" src="https://www.myinstants.com/media/sounds/tetris-theme-song-2.mp3"></audio> <!-- Звуковой эффект падения -->
-<audio id="lineClearSound" src="https://www.myinstants.com/media/sounds/tetris-line-clear.mp3"></audio> <!-- Звуковой эффект очистки линии -->
-<audio id="gameOverSound" src="https://www.myinstants.com/media/sounds/game-over-arcade-1.mp3"></audio> <!-- Звуковой эффект окончания игры -->
-<script>
-const grid = 32;
-let score = 0;
-let timeLeft = 90;
-let isPlaying = false;
-let gameOver = true;
-let rAF = null;
-let timerInterval = null;
-const playfield = [];
-const colors = {
-  'I': 'cyan', 'O': 'yellow', 'T': 'purple',
-  'S': 'green', 'Z': 'red', 'J': 'blue', 'L': 'orange'
-};
-const tetrominos = {
-  'I': [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]],
-  'J': [[1,0,0], [1,1,1], [0,0,0]],
-  'L': [[0,0,1], [1,1,1], [0,0,0]],
-  'O': [[1,1], [1,1]],
-  'S': [[0,1,1], [1,1,0], [0,0,0]],
-  'Z': [[1,1,0], [0,1,1], [0,0,0]],
-  'T': [[0,1,0], [1,1,1], [0,0,0]]
-};
-let tetromino = null;
-let count = 0;
-const canvas = document.getElementById('game');
-const context = canvas.getContext('2d');
-const dropSound = document.getElementById('dropSound');
-const lineClearSound = document.getElementById('lineClearSound');
-const gameOverSound = document.getElementById('gameOverSound');
+<div id="proof"></div>
+<script src="tetris.js" defer></script>
+<script type="module">
+  import init, { generate_proof, malloc, free } from './pkg/tetris_zkp.js';
 
-// Инициализация начального экрана
-function showStartScreen() {
-  context.fillStyle = 'black';
-  context.fillRect(0, 0, canvas.width, canvas.height); // Очистка всего канваса
-  context.fillStyle = 'deeppink'; // Яркий розовый шрифт
-  context.font = '50px Arial'; // Размер шрифта для "START" (как в конце игры)
-  context.textAlign = 'center';
-  context.fillText('START', canvas.width / 2, 300);
-  context.font = '30px Arial'; // Размер шрифта для "PRESS SPACE" (как в конце игры)
-  context.fillText('PRESS SPACE', canvas.width / 2, 340);
-  context.textAlign = 'left'; // Сброс выравнивания
-  if (!gameOver) return;
-  requestAnimationFrame(showStartScreen);
-}
+  let wasm;
 
-document.addEventListener('keydown', function(e) {
-  if (gameOver && e.key === ' ') {
-    startGame();
-    return;
-  }
-  if (gameOver || !isPlaying) return;
-  
-  switch(e.key) {
-    case 'ArrowLeft':
-      if (isValidMove(tetromino.matrix, tetromino.row, tetromino.col - 1)) {
-        tetromino.col--;
-        dropSound.play(); // Звук при движении
+  async function run() {
+      try {
+          await init(); // Инициализация WASM
+          wasm = { memory: new WebAssembly.Memory({ initial: 256, maximum: 512 }) }; // Увеличим максимальную память
+          console.log("WASM initialized successfully");
+      } catch (e) {
+          console.error("WASM initialization failed:", e);
       }
-      break;
-    case 'ArrowRight':
-      if (isValidMove(tetromino.matrix, tetromino.row, tetromino.col + 1)) {
-        tetromino.col++;
-        dropSound.play(); // Звук при движении
-      }
-      break;
-    case 'ArrowDown':
-      if (isValidMove(tetromino.matrix, tetromino.row + 1, tetromino.col)) {
-        tetromino.row++;
-        score += 1;
-        updateScoreboard();
-        dropSound.play(); // Звук при движении вниз
-      }
-      break;
-    case 'ArrowUp':
-      const rotated = rotateMatrix(tetromino.matrix);
-      if (isValidMove(rotated, tetromino.row, tetromino.col)) {
-        tetromino.matrix = rotated;
-        dropSound.play(); // Звук при вращении
-      }
-      break;
   }
-});
 
-function startGame() {
-  if (!gameOver) return;
-  isPlaying = true;
-  gameOver = false;
-  score = 0;
-  timeLeft = 90;
-  context.clearRect(0, 0, canvas.width, canvas.height); // Очистка всего канваса
-  
-  playfield.length = 0;
-  for (let row = -2; row < 20; row++) {
-    playfield[row] = [];
-    for (let col = 0; col < 10; col++) {
-      playfield[row][col] = 0;
-    }
-  }
-  
-  tetromino = getNextTetromino();
-  updateScoreboard();
-  rAF = requestAnimationFrame(loop);
-  timerInterval = setInterval(updateTimer, 1000);
-}
+  // Определяем generateProof в глобальном контексте window
+  window.generateProof = function() {
+      if (!wasm || !wasm.memory) {
+          console.error("WASM not initialized");
+          document.getElementById('proof').innerText = "WASM not initialized";
+          return;
+      }
+      console.log("Generating proof, gameState:", JSON.stringify(gameState, null, 2));
+      // Упрощаем gameState, оставляя только ключевые данные
+      const simplifiedGameState = {
+          finalScore: gameState.finalScore,
+          finalTime: gameState.finalTime,
+          movesCount: gameState.moves.length
+      };
+      const gameData = JSON.stringify(simplifiedGameState);
+      console.log("Simplified gameData:", gameData);
+      const dataPtr = malloc(gameData.length + 1); // Выделяем память для строки + нулевой терминатор
+      if (dataPtr === 0) {
+          console.error("Failed to allocate memory for gameData");
+          document.getElementById('proof').innerText = "Memory allocation failed";
+          return;
+      }
+      const encoder = new TextEncoder();
+      const dataArray = encoder.encode(gameData);
+      const memory = new Uint8Array(wasm.memory.buffer);
+      try {
+          memory.set(dataArray, dataPtr); // Копируем данные в память
+          memory[dataPtr + dataArray.length] = 0; // Добавляем нулевой терминатор
 
-function updateTimer() {
-  if (timeLeft > 0) {
-    timeLeft--;
-    updateScoreboard();
-  } else {
-    showTimeUp();
-  }
-}
-
-function getNextTetromino() {
-  const names = Object.keys(tetrominos);
-  const name = names[Math.floor(Math.random() * names.length)];
-  return { 
-    name, 
-    matrix: tetrominos[name], 
-    row: -2, 
-    col: Math.floor((10 - tetrominos[name][0].length) / 2) 
+          const proofPtr = generate_proof(dataPtr);
+          if (proofPtr === 0) {
+              throw new Error("Proof generation failed: null pointer");
+          }
+          const proofLength = memory.indexOf(0, proofPtr); // Находим длину строки до нулевого терминатора
+          if (proofLength === -1) {
+              throw new Error("Invalid proof length");
+          }
+          const proof = new TextDecoder().decode(memory.subarray(proofPtr, proofLength));
+          console.log("Proof generated:", proof);
+          document.getElementById('proof').innerText = `ZKP: ${proof}`;
+      } catch (e) {
+          console.error("Error in generateProof:", e);
+          document.getElementById('proof').innerText = `Error: ${e.message}`;
+      } finally {
+          free(dataPtr, gameData.length + 1); // Освобождаем память для входных данных
+          if (proofPtr) {
+              // Определяем длину proof, если она доступна, иначе используем 1
+              const proofLength = proof ? proof.length + 1 : 1;
+              free(proofPtr, proofLength); // Освобождаем память для результата
+          }
+      }
   };
-}
 
-function updateScoreboard() {
-  // Очистка только верхней части для "Score" и "Time"
-  context.fillStyle = 'black';
-  context.fillRect(0, 0, canvas.width, 40); // Очистка верхней части (40px для большего пространства)
-  context.fillStyle = 'deeppink'; // Яркий розовый шрифт, как у "GAME OVER"
-  context.font = '24px Arial';
-  context.textAlign = 'left';
-  context.fillText(`Score: ${score}`, 10, 30); // Левый верхний угол
-  context.textAlign = 'right';
-  context.fillText(`Time: ${timeLeft}`, 310, 30); // Правый верхний угол
-  context.textAlign = 'left'; // Сброс выравнивания
-}
-
-function showGameOver() {
-  cancelAnimationFrame(rAF);
-  clearInterval(timerInterval);
-  gameOver = true;
-  isPlaying = false;
-  dropSound.pause(); // Остановка звуков
-  dropSound.currentTime = 0;
-  gameOverSound.play(); // Звук окончания игры
-  context.fillStyle = 'black';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = 'deeppink'; // Яркий розовый шрифт
-  context.font = '50px Arial'; // Размер шрифта для "GAME OVER" (как для "START")
-  context.textAlign = 'center';
-  context.fillText('GAME OVER', canvas.width / 2, 320);
-  context.font = '30px Arial'; // Размер шрифта для "PRESS SPACE" (как для "PRESS SPACE" в начале)
-  context.fillText('PRESS SPACE', canvas.width / 2, 360);
-  context.textAlign = 'left'; // Сброс выравнивания
-}
-
-function showTimeUp() {
-  cancelAnimationFrame(rAF);
-  clearInterval(timerInterval);
-  gameOver = true;
-  isPlaying = false;
-  dropSound.pause(); // Остановка звуков
-  dropSound.currentTime = 0;
-  gameOverSound.play(); // Звук окончания игры
-  context.fillStyle = 'black';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = 'deeppink'; // Яркий розовый шрифт
-  context.font = '50px Arial'; // Размер шрифта для "Score: [число]" и "PLAY AGAIN" (как для "START")
-  context.textAlign = 'center';
-  context.fillText(`Score: ${score}`, canvas.width / 2, 280);
-  context.fillText('PLAY AGAIN', canvas.width / 2, 340);
-  context.font = '30px Arial'; // Размер шрифта для "PRESS SPACE" (как для "PRESS SPACE" в начале)
-  context.fillText('PRESS SPACE', canvas.width / 2, 380);
-  context.textAlign = 'left'; // Сброс выравнивания
-}
-
-function rotateMatrix(matrix) {
-  const n = matrix.length;
-  const rotated = matrix.map(row => [...row]);
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < n; j++) {
-      rotated[i][j] = matrix[n - 1 - j][i];
-    }
-  }
-  return rotated;
-}
-
-function isValidMove(matrix, cellRow, cellCol) {
-  for (let row = 0; row < matrix.length; row++) {
-    for (let col = 0; col < matrix[row].length; col++) {
-      if (matrix[row][col]) {
-        const newRow = cellRow + row;
-        const newCol = cellCol + col;
-        if (newCol < 0 || 
-            newCol >= 10 || 
-            newRow >= 20 || 
-            (newRow >= 0 && playfield[newRow][newCol])) {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
-}
-
-function loop() {
-  if (!isPlaying) return;
-  
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  
-  // Отображение "Score" и "Time" перед отрисовкой игрового поля
-  updateScoreboard();
-  
-  for (let row = 0; row < 20; row++) {
-    for (let col = 0; col < 10; col++) {
-      if (playfield[row][col]) {
-        context.fillStyle = colors[playfield[row][col]];
-        context.fillRect(col * grid, row * grid, grid - 1, grid - 1);
-      }
-    }
-  }
-  
-  // Здесь можно изменить скорость падения фигур
-  // Чем больше число (35), тем медленнее падают фигуры
-  // Чем меньше число, тем быстрее падают фигуры
-  if (++count > 8) {
-    // Проверка, не заполнено ли поле до критической высоты (например, строка 2)
-    for (let col = 0; col < 10; col++) {
-      if (playfield[2][col] !== 0) { // Если в строке 2 есть блоки, игра заканчивается
-        showGameOver();
-        return;
-      }
-    }
-
-    if (isValidMove(tetromino.matrix, tetromino.row + 1, tetromino.col)) {
-      tetromino.row++;
-    } else {
-      placeTetromino();
-      checkLines();
-      lineClearSound.play(); // Звук при очистке линии
-      tetromino = getNextTetromino();
-      if (!isValidMove(tetromino.matrix, tetromino.row, tetromino.col)) {
-        showGameOver();
-        return;
-      }
-    }
-    count = 0;
-  }
-  
-  drawTetromino();
-  rAF = requestAnimationFrame(loop);
-}
-
-function drawTetromino() {
-  context.fillStyle = colors[tetromino.name];
-  for (let row = 0; row < tetromino.matrix.length; row++) {
-    for (let col = 0; col < tetromino.matrix[row].length; col++) {
-      if (tetromino.matrix[row][col] && tetromino.row + row >= 0) {
-        context.fillRect((tetromino.col + col) * grid, (tetromino.row + row) * grid, grid - 1, grid - 1);
-      }
-    }
-  }
-}
-
-function placeTetromino() {
-  for (let row = 0; row < tetromino.matrix.length; row++) {
-    for (let col = 0; col < tetromino.matrix[row].length; col++) {
-      if (tetromino.matrix[row][col] && tetromino.row + row >= 0) {
-        playfield[tetromino.row + row][tetromino.col + col] = tetromino.name;
-      }
-    }
-  }
-}
-
-function checkLines() {
-  let linesCleared = 0;
-  for (let row = 19; row >= 0; row--) {
-    if (playfield[row].every(cell => cell !== 0)) {
-      linesCleared++;
-      playfield.splice(row, 1);
-      playfield.unshift(Array(10).fill(0));
-      row++;
-    }
-  }
-  if (linesCleared > 0) {
-    score += linesCleared * 20;
-    updateScoreboard();
-  }
-}
-
-// Запуск начального экрана
-showStartScreen();
+  run();
 </script>
 </body>
 </html>
